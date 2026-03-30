@@ -1,6 +1,6 @@
 ==============================================================================
   ML-KEM NIST FIPS 203 — Detailed Byte-Level Accuracy Report
-  Generated: 2026-03-30 15:35:00
+  Generated: 2026-03-30 15:45:00
   Reference: NIST ACVP-Server (usnistgov/ACVP-Server)
   Configuration: Deterministic Seed Injection Enabled
 ==============================================================================
@@ -40,7 +40,7 @@
       ✅ ss   (  32B): 10/10 exact | byte acc 100.00% | bit acc 100.00% | hamming    0.0 bits
 
 ──────────────────────────────────────────────────────────────────────────────
-  wolfssl (with SEED INTERCEPT)
+  wolfssl
 ──────────────────────────────────────────────────────────────────────────────
 
   ML-KEM-512
@@ -95,10 +95,8 @@
   1024/dec/ss                  100.00%             100.00%           100.00%         100.00%
 
 ==============================================================================
-  KEY FINDINGS & CONCLUSION:
+  KEY FINDINGS:
   • 100.00% = exact match to NIST (every byte identical)
-  • WOLFSSL PASSED: By applying deterministic seed injection matching the NIST 
-    ACVP format, WolfSSL natively passes 100% of all Key Generation, 
-    Encapsulation, and Decapsulation checks.
-  • The previous anomalies were strictly testing environment errors.
+  • <100%   = divergence from NIST standard
+  • Hamming distance = number of bits that differ from NIST output
 ==============================================================================
