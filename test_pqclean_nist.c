@@ -67,15 +67,15 @@ int main(int argc, char** argv) {
             injected_len = 64;
             injected_pos = 0;
             
-            uint8_t pk[CRYPTO_PUBLICKEYBYTES], sk[CRYPTO_SECRETKEYBYTES];
-            if(crypto_kem_keypair(pk, sk) != 0) {
+            uint8_t pk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_PUBLICKEYBYTES], sk[PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES];
+            if(PQCLEAN_MLKEM512_CLEAN_crypto_kem_keypair(pk, sk) != 0) {
                 printf("Keypair failed\n"); fail++; continue;
             }
             
-            uint8_t ek_bin[CRYPTO_PUBLICKEYBYTES]; hex2bin(ek_ref, ek_bin);
-            uint8_t dk_bin[CRYPTO_SECRETKEYBYTES]; hex2bin(dk_ref, dk_bin);
+            uint8_t ek_bin[PQCLEAN_MLKEM512_CLEAN_CRYPTO_PUBLICKEYBYTES]; hex2bin(ek_ref, ek_bin);
+            uint8_t dk_bin[PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES]; hex2bin(dk_ref, dk_bin);
             
-            if(memcmp(pk, ek_bin, CRYPTO_PUBLICKEYBYTES)==0 && memcmp(sk, dk_bin, CRYPTO_SECRETKEYBYTES)==0) {
+            if(memcmp(pk, ek_bin, PQCLEAN_MLKEM512_CLEAN_CRYPTO_PUBLICKEYBYTES)==0 && memcmp(sk, dk_bin, PQCLEAN_MLKEM512_CLEAN_CRYPTO_SECRETKEYBYTES)==0) {
                 pass++;
             } else {
                 printf("Mismatch at count %d\n", count); fail++;
