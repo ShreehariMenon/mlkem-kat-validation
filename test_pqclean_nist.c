@@ -8,7 +8,7 @@ static uint8_t *injected_seed = NULL;
 static size_t injected_len = 0;
 static size_t injected_pos = 0;
 
-void randombytes(uint8_t *out, size_t outlen) {
+void PQCLEAN_randombytes(uint8_t *out, size_t outlen) {
     if (injected_seed && injected_pos + outlen <= injected_len) {
         memcpy(out, injected_seed + injected_pos, outlen);
         injected_pos += outlen;
@@ -17,7 +17,7 @@ void randombytes(uint8_t *out, size_t outlen) {
         exit(1);
     }
 }
-int randombytes_init(unsigned char *entropy_input, unsigned char *personalization_string, int security_strength) { return 0; }
+int PQCLEAN_randombytes_init(unsigned char *entropy_input, unsigned char *personalization_string, int security_strength) { return 0; }
 
 int hexdig(char c) {
     if(c>='0'&&c<='9') return c-'0';
