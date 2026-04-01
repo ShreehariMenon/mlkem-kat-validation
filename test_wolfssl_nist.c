@@ -1,49 +1,18 @@
-#define WOLFSSL_EXPERIMENTAL
-#define WOLFSSL_MLKEM
-#define HAVE_PQC_MLKEM
-
-// Must define CUSTOM_RAND_GENERATE_BLOCK before including headers
-#define CUSTOM_RAND_GENERATE_BLOCK CustomRNG_GenerateBlock
-#define CUSTOM_RAND_GENERATE_SEED  CustomRNG_GenerateSeed
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 
 #include <wolfssl/options.h>
-#include <wolfssl/ssl.h>
 #include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/random.h>
 #include <wolfssl/wolfcrypt/mlkem.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 
-static uint8_t injected_d[32];
-static uint8_t injected_z[32];
-static uint8_t injected_m[32];
-
-static int d_used = 0, z_used = 0, m_used = 0;
-static int current_mode = 0; 
-
-int CustomRNG_GenerateBlock(void* rng, byte* output, word32 sz) {
-    if (current_mode == 1) { 
-        if (sz == 64) {
-            memcpy(output, injected_d, 32); memcpy(output + 32, injected_z, 32);
-            return 0;
-        }
-        if (sz == 32) {
-            if (!d_used) { memcpy(output, injected_d, 32); d_used = 1; return 0; }
-            if (!z_used) { memcpy(output, injected_z, 32); z_used = 1; return 0; }
-        }
-    } else if (current_mode == 2) { 
-        if (sz == 32 && !m_used) {
-            memcpy(output, injected_m, 32); m_used = 1; return 0;
-        }
-    }
+int hexdig(char c) {
+    if(c>='0'&&c<='9') return c-'0';
+    if(c>='a'&&c<='f') return c-'a'+10;
+    if(c>='A'&&c<='F') return c-'A'+10;
     return -1;
-}
-
-int CustomRNG_GenerateSeed(void* rng, byte* output, word32 sz) {
-    return CustomRNG_GenerateBlock(rng, output, sz);
 }
 
 int hex2bin(const char *hex, uint8_t *out) {
@@ -61,7 +30,7 @@ int main(int argc, char** argv) {
     if (argc < 3) return 1;
     int bits = atoi(argv[1]);
     
-    int type = (bits == 512) ? MLKEM512 : (bits == 768) ? MLKEM768 : MLKEM1024;
+    int type = (bits == 512) ? WC_ML_KEM_512 : (bits == 768) ? WC_ML_KEM_768 : WC_ML_KEM_1024;
     
     size_t pk_len = (bits == 512) ? 800 : (bits == 768) ? 1184 : 1568;
     size_t sk_len = (bits == 512) ? 1632 : (bits == 768) ? 2400 : 3168;
@@ -75,10 +44,6 @@ int main(int argc, char** argv) {
     char ek_ref[4096]="", dk_ref[4096]="", ct_ref[4096]="", ss_ref[4096]="";
     
     int count = -1, keygen_pass = 0, encap_pass = 0, decap_pass = 0;
-
-    wolfCrypt_Init();
-    WC_RNG rng;
-    wc_InitRng(&rng);
 
     printf("========================================================\n");
     printf("  WolfSSL ML-KEM-%d KAT Verification                    \n", bits);
@@ -103,58 +68,65 @@ int main(int argc, char** argv) {
             d_hex[strcspn(d_hex, "\r\n")] = 0; z_hex[strcspn(z_hex, "\r\n")] = 0; msg_hex[strcspn(msg_hex, "\r\n")] = 0;
             ek_ref[strcspn(ek_ref, "\r\n")] = 0; dk_ref[strcspn(dk_ref, "\r\n")] = 0; ct_ref[strcspn(ct_ref, "\r\n")] = 0; ss_ref[strcspn(ss_ref, "\r\n")] = 0;
 
-            hex2bin(d_hex, injected_d); hex2bin(z_hex, injected_z);
-            if (strlen(msg_hex)) hex2bin(msg_hex, injected_m);
+            uint8_t rand_seed[64], msg_seed[32];
 
-            struct MlKemKey key;
-            wc_MlKemKey_Init(&key, type, NULL, INVALID_DEVID);
-
+            /* --- KEYGEN TEST --- */
             if (strlen(ek_ref) && strlen(dk_ref)) {
-                current_mode = 1; d_used = z_used = 0;
-                if (wc_MlKemKey_MakeKeyWithRandom(&key, &rng) == 0) {
+                hex2bin(d_hex, rand_seed);
+                hex2bin(z_hex, rand_seed + 32);
+
+                MlKemKey* key = wc_MlKemKey_New(type, NULL, INVALID_DEVID);
+                if (key != NULL && wc_MlKemKey_MakeKeyWithRandom(key, rand_seed, 64) == 0) {
                     uint8_t pk[3000], sk[4000];
-                    wc_MlKemKey_EncodePublicKey(&key, pk, pk_len);
-                    wc_MlKemKey_EncodePrivateKey(&key, sk, sk_len);
+                    wc_MlKemKey_EncodePublicKey(key, pk, pk_len);
+                    wc_MlKemKey_EncodePrivateKey(key, sk, sk_len);
+
                     uint8_t ek_bin[3000], dk_bin[4000];
                     hex2bin(ek_ref, ek_bin); hex2bin(dk_ref, dk_bin);
                     if (memcmp(pk, ek_bin, pk_len) == 0 && memcmp(sk, dk_bin, sk_len) == 0) keygen_pass++;
                     else printf(" [!] KeyGen Mismatch at count %d\n", count);
-                }
+                } else printf(" [!] KeyGen Function Failed at count %d\n", count);
+                if (key) wc_MlKemKey_Free(key);
             }
 
+            /* --- ENCAPSULATION TEST --- */
             if (strlen(msg_hex) && strlen(ek_ref)) {
-                if (!strlen(dk_ref)) {
-                    uint8_t ek_bin[3000]; hex2bin(ek_ref, ek_bin);
-                    wc_MlKemKey_DecodePublicKey(&key, ek_bin, pk_len);
-                }
-                current_mode = 2; m_used = 0;
+                hex2bin(msg_hex, msg_seed);
+                
+                MlKemKey* key = wc_MlKemKey_New(type, NULL, INVALID_DEVID);
+                uint8_t ek_bin[3000]; hex2bin(ek_ref, ek_bin);
+                wc_MlKemKey_DecodePublicKey(key, ek_bin, pk_len);
+
                 uint8_t ct[3000], ss[32];
-                // Warning note: If this implicit warning remains, check if WolfSSL requires EncapsulateWithRandom 
-                if (wc_MlKemKey_Encapsulate(&key, ct, ss, &rng) == 0) {
+                if (wc_MlKemKey_EncapsulateWithRandom(key, ct, ss, msg_seed, 32) == 0) {
                     uint8_t ct_bin[3000], ss_bin[32];
                     hex2bin(ct_ref, ct_bin); hex2bin(ss_ref, ss_bin);
                     if (memcmp(ct, ct_bin, ct_len) == 0 && memcmp(ss, ss_bin, 32) == 0) encap_pass++;
                     else printf(" [!] Encap Mismatch at count %d\n", count);
-                }
+                } else printf(" [!] Encap Function Failed at count %d\n", count);
+                if (key) wc_MlKemKey_Free(key);
             }
 
+            /* --- DECAPSULATION TEST --- */
             if (strlen(dk_ref) && strlen(ct_ref) && strlen(ss_ref) && !strlen(msg_hex)) {
+                MlKemKey* key = wc_MlKemKey_New(type, NULL, INVALID_DEVID);
                 uint8_t dk_bin[4000]; hex2bin(dk_ref, dk_bin);
-                wc_MlKemKey_DecodePrivateKey(&key, dk_bin, sk_len);
+                wc_MlKemKey_DecodePrivateKey(key, dk_bin, sk_len);
+
                 uint8_t ct_bin[3000], ss_bin[32];
                 hex2bin(ct_ref, ct_bin); hex2bin(ss_ref, ss_bin);
+                
                 uint8_t ss_out[32];
-                if (wc_MlKemKey_Decapsulate(&key, ss_out, ct_bin, ct_len) == 0) {
+                // Standard decapsulate doesn't require random
+                if (wc_MlKemKey_Decapsulate(key, ss_out, ct_bin, ct_len) == 0) {
                     if (memcmp(ss_out, ss_bin, 32) == 0) decap_pass++;
                     else printf(" [!] Decap Mismatch at count %d\n", count);
-                }
+                } else printf(" [!] Decap Function Failed at count %d\n", count);
+                if (key) wc_MlKemKey_Free(key);
             }
-
-            wc_MlKemKey_Free(&key);
         }
     }
     fclose(fp);
-    wolfCrypt_Cleanup();
 
     printf("\n  Summary for WolfSSL ML-KEM-%d\n", bits);
     if (keygen_pass > 0) printf("  KeyGen Passed:         %d\n", keygen_pass);
