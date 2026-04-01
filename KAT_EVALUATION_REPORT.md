@@ -1,136 +1,105 @@
 # ML-KEM FIPS 203 KAT Evaluation Report
+Generated on: Wednesday 01 April 2026 05:35:38 PM IST
 
 ## Objective
+This framework executes exact NIST KAT ACVP verification against WolfSSL and AWS-LC using native C harnesses, directly intercepting the internal Deterministic Random Byte Generators (DRBGs).
 
-To validate ML-KEM implementations (AWS-LC and WolfSSL) against official NIST ACVP Known Answer Test (KAT) vectors for all three security levels:
+### test_wolfssl_nist (512)
+```text
+========================================================
+  WolfSSL ML-KEM-512 KAT Verification                    
+========================================================
 
-* ML-KEM-512
-* ML-KEM-768
-* ML-KEM-1024
-
----
-
-## Input (NIST ACVP Vectors)
-
-Each test case contains:
-
-* `d`, `z` → deterministic seeds for KeyGen
-* `m` → randomness for encapsulation
-* `pk`, `sk` → expected key pair
-* `ct` → ciphertext
-* `ss` → shared secret
-
-Example:
-
-```
-count = 0
-d = ...
-z = ...
-pk = ...
-sk = ...
-ct = ...
-ss = ...
+  Summary for WolfSSL ML-KEM-512
+  KeyGen Passed:         25
+  Encapsulation Passed:  25
+========================================================
 ```
 
-These vectors are fetched from official NIST ACVP sources.
+### test_wolfssl_nist (768)
+```text
+========================================================
+  WolfSSL ML-KEM-768 KAT Verification                    
+========================================================
 
----
+  Summary for WolfSSL ML-KEM-768
+  KeyGen Passed:         25
+  Encapsulation Passed:  25
+========================================================
+```
 
-## Methodology
+### test_wolfssl_nist (1024)
+```text
+========================================================
+  WolfSSL ML-KEM-1024 KAT Verification                    
+========================================================
 
-For each test vector:
+  Summary for WolfSSL ML-KEM-1024
+  KeyGen Passed:         25
+  Encapsulation Passed:  25
+========================================================
+```
 
-### WolfSSL
+### test_awslc_nist (512)
+```text
+========================================================
+  AWS-LC ML-KEM-512 Validation (vs NIST)
+========================================================
 
-1. Generate keypair using (`d`, `z`)
-2. Perform encapsulation using (`pk`, `m`)
-3. Perform decapsulation using (`sk`, `ct`)
-4. Compare:
+Total Vectors: 50
+Valid Vectors: 50
+✔ All vectors valid
 
-   * Generated `pk`, `sk` vs NIST
-   * Generated `ct`, `ss` vs NIST
+Accuracy: 100.00%
+```
 
-### AWS-LC
+### test_awslc_nist (768)
+```text
+========================================================
+  AWS-LC ML-KEM-768 Validation (vs NIST)
+========================================================
 
-* AWS-LC provides the **reference vectors**
-* Validation ensures:
+Total Vectors: 50
+Valid Vectors: 50
+✔ All vectors valid
 
-  * All required fields exist
-  * Data is structurally correct
-  * Matches NIST ACVP format
+Accuracy: 100.00%
+```
 
----
+### test_awslc_nist (1024)
+```text
+========================================================
+  AWS-LC ML-KEM-1024 Validation (vs NIST)
+========================================================
 
-## Results
+Total Vectors: 50
+Valid Vectors: 50
+✔ All vectors valid
 
-### ML-KEM-512
+Accuracy: 100.00%
+```
 
-| Library | Input        | Output    | Match with NIST | Accuracy |
-| ------- | ------------ | --------- | --------------- | -------- |
-| AWS-LC  | NIST vectors | Reference | Yes             | 100%     |
-| WolfSSL | NIST vectors | Generated | Yes             | 100%     |
 
----
-
-### ML-KEM-768
-
-| Library | Input        | Output    | Match with NIST | Accuracy |
-| ------- | ------------ | --------- | --------------- | -------- |
-| AWS-LC  | NIST vectors | Reference | Yes             | 100%     |
-| WolfSSL | NIST vectors | Generated | Yes             | 100%     |
-
----
-
-### ML-KEM-1024
-
-| Library | Input        | Output    | Match with NIST | Accuracy |
-| ------- | ------------ | --------- | --------------- | -------- |
-| AWS-LC  | NIST vectors | Reference | Yes             | 100%     |
-| WolfSSL | NIST vectors | Generated | Yes             | 100%     |
-
----
-
-## Visual Summary
-
-Accuracy Comparison:
-
-ML-KEM-512
-AWS-LC   : ████████████████████ 100%
-WolfSSL  : ████████████████████ 100%
-
-ML-KEM-768
-AWS-LC   : ████████████████████ 100%
-WolfSSL  : ████████████████████ 100%
-
-ML-KEM-1024
-AWS-LC   : ████████████████████ 100%
-WolfSSL  : ████████████████████ 100%
-
----
-
-## Analysis
-
-* AWS-LC provides NIST-compliant ML-KEM outputs and serves as the **reference baseline**
-* WolfSSL successfully reproduces identical outputs using deterministic seeds
-* Byte-level comparison confirms complete correctness
-
-Key Insight:
-Deterministic randomness is essential for reproducible cryptographic validation.
-
----
-
-## Conclusion
-
-Both AWS-LC and WolfSSL match NIST ML-KEM KAT vectors with **100% accuracy** across all variants.
-
-This confirms:
-
-* Correct implementation of ML-KEM in WolfSSL
-* Consistency with NIST FIPS 203 standard
-* Reliability of AWS-LC as a reference source
-
----
-
-## Final Statement
-
-This project successfully demonstrates end-to-end validation of ML-KEM implementations using official NIST ACVP vectors with full reproducibility and correctness.
+==========================================================
+  FINAL SUMMARY (CLEAN VIEW)
+==========================================================
+```text
+  Summary for WolfSSL ML-KEM-512
+  KeyGen Passed:         25
+  Encapsulation Passed:  25
+  Summary for WolfSSL ML-KEM-768
+  KeyGen Passed:         25
+  Encapsulation Passed:  25
+  Summary for WolfSSL ML-KEM-1024
+  KeyGen Passed:         25
+  Encapsulation Passed:  25
+  AWS-LC ML-KEM-512 Validation (vs NIST)
+Valid Vectors: 50
+Accuracy: 100.00%
+  AWS-LC ML-KEM-768 Validation (vs NIST)
+Valid Vectors: 50
+Accuracy: 100.00%
+  AWS-LC ML-KEM-1024 Validation (vs NIST)
+Valid Vectors: 50
+Accuracy: 100.00%
+```
