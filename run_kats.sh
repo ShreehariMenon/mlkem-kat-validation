@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+echo "Ensuring NIST vectors are up to date and correctly formatted..."
+python3 fetch_nist_vectors.py
+
 # Setup Output Report
 REPORT="KAT_EVALUATION_REPORT.md"
 echo "# ML-KEM FIPS 203 KAT Evaluation Report" > "$REPORT"

@@ -39,9 +39,9 @@ int main(int argc, char** argv) {
     FILE *fp = fopen(argv[2], "r");
     if (!fp) return 1;
 
-    char line[4096];
+    char line[10000];
     char d_hex[100]="", z_hex[100]="", msg_hex[100]="";
-    char ek_ref[4096]="", dk_ref[4096]="", ct_ref[4096]="", ss_ref[4096]="";
+    char ek_ref[10000]="", dk_ref[10000]="", ct_ref[10000]="", ss_ref[10000]="";
     
     int count = -1, keygen_pass = 0, encap_pass = 0, decap_pass = 0;
 
