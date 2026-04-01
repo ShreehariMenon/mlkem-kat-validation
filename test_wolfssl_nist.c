@@ -58,20 +58,23 @@ int main(int argc, char** argv) {
         }
         else if (strncmp(line, "d = ", 4) == 0) strcpy(d_hex, line + 4);
         else if (strncmp(line, "z = ", 4) == 0) strcpy(z_hex, line + 4);
-        else if (strncmp(line, "msg = ", 6) == 0) strcpy(msg_hex, line + 6);
+        else if (strncmp(line, "m = ", 4) == 0) strcpy(msg_hex, line + 4);
         else if (strncmp(line, "ek = ", 5) == 0) strcpy(ek_ref, line + 5);
         else if (strncmp(line, "dk = ", 5) == 0) strcpy(dk_ref, line + 5);
         else if (strncmp(line, "c = ", 4) == 0) strcpy(ct_ref, line + 4);
         else if (strncmp(line, "ct = ", 5) == 0) strcpy(ct_ref, line + 5);
-        else if (strncmp(line, "ss = ", 5) == 0) {
-            strcpy(ss_ref, line + 5);
+        else if (strncmp(line, "ss = ", 5) == 0) strcpy(ss_ref, line + 5);
+        
+        if (line[0] == '\n' || line[0] == '\r') {
+            if (count == -1) continue;
+            
             d_hex[strcspn(d_hex, "\r\n")] = 0; z_hex[strcspn(z_hex, "\r\n")] = 0; msg_hex[strcspn(msg_hex, "\r\n")] = 0;
             ek_ref[strcspn(ek_ref, "\r\n")] = 0; dk_ref[strcspn(dk_ref, "\r\n")] = 0; ct_ref[strcspn(ct_ref, "\r\n")] = 0; ss_ref[strcspn(ss_ref, "\r\n")] = 0;
 
             uint8_t rand_seed[64], msg_seed[32];
 
             /* --- KEYGEN TEST --- */
-            if (strlen(ek_ref) && strlen(dk_ref)) {
+            if (strlen(d_hex) && strlen(z_hex) && strlen(ek_ref) && strlen(dk_ref)) {
                 hex2bin(d_hex, rand_seed);
                 hex2bin(z_hex, rand_seed + 32);
 
@@ -90,7 +93,7 @@ int main(int argc, char** argv) {
             }
 
             /* --- ENCAPSULATION TEST --- */
-            if (strlen(msg_hex) && strlen(ek_ref)) {
+            if (strlen(msg_hex) && strlen(ek_ref) && strlen(ct_ref) && strlen(ss_ref)) {
                 hex2bin(msg_hex, msg_seed);
                 
                 MlKemKey* key = wc_MlKemKey_New(type, NULL, INVALID_DEVID);
@@ -124,6 +127,11 @@ int main(int argc, char** argv) {
                 } else printf(" [!] Decap Function Failed at count %d\n", count);
                 if (key) wc_MlKemKey_Free(key);
             }
+            
+            memset(d_hex, 0, sizeof(d_hex)); memset(z_hex, 0, sizeof(z_hex)); memset(msg_hex, 0, sizeof(msg_hex));
+            memset(ek_ref, 0, sizeof(ek_ref)); memset(dk_ref, 0, sizeof(dk_ref)); 
+            memset(ct_ref, 0, sizeof(ct_ref)); memset(ss_ref, 0, sizeof(ss_ref));
+            count = -1;
         }
     }
     fclose(fp);
