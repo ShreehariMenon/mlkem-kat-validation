@@ -9,7 +9,7 @@ all: test_wolfssl_nist test_awslc_nist test_pqclean_nist
 
 test_wolfssl_nist: test_wolfssl_nist.c
 	$(CC) $(CFLAGS) $< -o $@ \
-	-I$(WOLFSSL_DIR) -I$(WOLFSSL_DIR)/wolfssl \
+	-I$(WOLFSSL_DIR) -I$(WOLFSSL_DIR)/wolfssl -I$(WOLFSSL_DIR)/build \
 	-L$(WOLFSSL_DIR)/build -lwolfssl \
 	-Wl,-rpath,$(WOLFSSL_DIR)/build
 
