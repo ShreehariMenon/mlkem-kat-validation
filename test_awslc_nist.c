@@ -7,6 +7,7 @@
 #include <openssl/rand.h>
 #include <openssl/obj_mac.h>
 #include <openssl/objects.h>
+#include <openssl/err.h>
 
 static uint8_t injected_d[32];
 static uint8_t injected_z[32];
@@ -143,6 +144,9 @@ int main(int argc, char** argv) {
                     
                     if (memcmp(pk, ek_bin, pk_len) == 0 && memcmp(sk, dk_bin, sk_len) == 0) keygen_pass++;
                     else printf(" [!] KeyGen Mismatch at count %d\n", count);
+                } else {
+                    printf(" [!] KeyGen Function Failed at count %d (ctx=%p)\n", count, (void*)ctx);
+                    ERR_print_errors_fp(stderr);
                 }
                 
                 if (pkey) EVP_PKEY_free(pkey);
@@ -158,17 +162,22 @@ int main(int argc, char** argv) {
                     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkey, NULL);
                     if (pctx) {
                         uint8_t ct[3000], ss[32];
-                        size_t ct_len = 0, ss_len = 32;
+                        size_t ct_len = 3000, ss_len = 32;
                         
-                        // AWS-LC drops the _init requirements for direct encapsulation
-                        EVP_PKEY_encapsulate(pctx, ct, &ct_len, ss, &ss_len);
-
-                        uint8_t ct_bin[3000], ss_bin[32];
-                        hex2bin(ct_ref, ct_bin); hex2bin(ss_ref, ss_bin);
-                        if (memcmp(ct, ct_bin, ct_len) == 0 && memcmp(ss, ss_bin, 32) == 0) encap_pass++;
-                        else printf(" [!] Encap Mismatch at count %d\n", count);
-                    } 
+                        if (EVP_PKEY_encapsulate(pctx, ct, &ct_len, ss, &ss_len) == 1) {
+                            uint8_t ct_bin[3000], ss_bin[32];
+                            hex2bin(ct_ref, ct_bin); hex2bin(ss_ref, ss_bin);
+                            if (memcmp(ct, ct_bin, ct_len) == 0 && memcmp(ss, ss_bin, 32) == 0) encap_pass++;
+                            else printf(" [!] Encap Mismatch at count %d\n", count);
+                        } else {
+                            printf(" [!] Encap Failed at count %d\n", count);
+                            ERR_print_errors_fp(stderr);
+                        }
+                    } else printf(" [!] Encap CTX Failed\n");
                     if (pctx) EVP_PKEY_CTX_free(pctx);
+                } else {
+                    printf(" [!] EVP_PKEY_new_raw_public_key failed at count %d (nid=%d, len=%zu)\n", count, alg_nid, ek_len);
+                    ERR_print_errors_fp(stderr);
                 }
                 if (pkey) EVP_PKEY_free(pkey);
             }
