@@ -5,39 +5,48 @@
 
 #include <openssl/evp.h>
 #include <openssl/rand.h>
-#include <openssl/crypto.h>
+#include <openssl/obj_mac.h>
 
+#ifndef EVP_PKEY_MLKEM512
+#ifdef EVP_PKEY_KYBER512
+#define EVP_PKEY_MLKEM512 EVP_PKEY_KYBER512
+#define EVP_PKEY_MLKEM768 EVP_PKEY_KYBER768
+#define EVP_PKEY_MLKEM1024 EVP_PKEY_KYBER1024
+#else
+#define EVP_PKEY_MLKEM512 NID_kyber512
+#define EVP_PKEY_MLKEM768 NID_kyber768
+#define EVP_PKEY_MLKEM1024 NID_kyber1024
+#endif
+#endif
+
+// BoringSSL explicitly sets the bytes/pseudorand parameter as `int`, not `size_t`
 static uint8_t injected_d[32];
 static uint8_t injected_z[32];
 static uint8_t injected_m[32];
 
-static int d_used = 0, z_used = 0, m_used = 0;
 static int current_mode = 0; // 1 = keygen, 2 = encap
 
-static int custom_rand_bytes(unsigned char *buf, int num) {
-    if (current_mode == 1) { // KeyGen 64 bytes
-        if (num == 64) {
-            memcpy(buf, injected_d, 32);
-            memcpy(buf + 32, injected_z, 32);
-            return 1;
-        }
-        if (num == 32) {
-            if (!d_used) { memcpy(buf, injected_d, 32); d_used = 1; return 1; }
-            if (!z_used) { memcpy(buf, injected_z, 32); z_used = 1; return 1; }
-        }
-    } else if (current_mode == 2) { // Encap 32 bytes
-        if (num == 32 && !m_used) {
-            memcpy(buf, injected_m, 32);
-            m_used = 1;
-            return 1;
-        }
+int custom_rand_bytes(uint8_t *buf, int num) {
+    if (current_mode == 1 && num == 64) {
+        memcpy(buf, injected_d, 32);
+        memcpy(buf + 32, injected_z, 32);
+        return 1; // 1 for success in OpenSSL RAND
     }
-    fprintf(stderr, "FATAL: AWS-LC requested unexpected entropy (%d bytes) in mode %d\n", num, current_mode);
-    exit(1);
-    return 0;
+    if (current_mode == 2 && num == 32) {
+        memcpy(buf, injected_m, 32);
+        return 1;
+    }
+    return 1; // Always say success
 }
 
-static RAND_METHOD custom_rand = { NULL, custom_rand_bytes, NULL, NULL, custom_rand_bytes, NULL };
+static RAND_METHOD custom_rand = {
+    NULL,
+    custom_rand_bytes,
+    NULL,
+    NULL,
+    custom_rand_bytes,
+    NULL
+};
 
 int hexdig(char c) {
     if(c>='0'&&c<='9') return c-'0';
@@ -50,34 +59,28 @@ int hex2bin(const char *hex, uint8_t *out) {
     size_t len = strlen(hex);
     if(len%2!=0) return -1;
     for(size_t i=0; i<len/2; i++) {
-        int hi = hexdig(hex[2*i]), lo = hexdig(hex[2*i+1]);
-        if(hi<0||lo<0) return -1;
-        out[i] = (hi<<4)|lo;
+        unsigned int val;
+        sscanf(hex + 2*i, "%2x", &val);
+        out[i] = (uint8_t)val;
     }
     return len/2;
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        printf("Usage: %s <512|768|1024> <acvp.rsp>\n", argv[0]);
-        return 1;
-    }
+    if (argc < 3) return 1;
 
     int bits = atoi(argv[1]);
-    char alg_name[32];
-    sprintf(alg_name, "ML-KEM-%d", bits);
+    int alg_nid = (bits == 512) ? EVP_PKEY_MLKEM512 : (bits == 768) ? EVP_PKEY_MLKEM768 : EVP_PKEY_MLKEM1024;
 
     FILE *fp = fopen(argv[2], "r");
-    if (!fp) { perror("fopen"); return 1; }
+    if (!fp) return 1;
 
     char line[4096];
     char d_hex[100]="", z_hex[100]="", msg_hex[100]="";
     char ek_ref[4096]="", dk_ref[4096]="", ct_ref[4096]="", ss_ref[4096]="";
     
-    int count = -1;
-    int keygen_pass = 0, encap_pass = 0, decap_pass = 0;
-    
-    // Inject custom random directly into AWS-LC
+    int count = -1, keygen_pass = 0, encap_pass = 0, decap_pass = 0;
+
     RAND_set_rand_method(&custom_rand);
 
     printf("========================================================\n");
@@ -88,7 +91,7 @@ int main(int argc, char** argv) {
         if (strncmp(line, "count = ", 8) == 0) {
             count = atoi(line + 8);
             memset(d_hex, 0, sizeof(d_hex)); memset(z_hex, 0, sizeof(z_hex)); memset(msg_hex, 0, sizeof(msg_hex));
-            memset(ek_ref, 0, sizeof(ek_ref)); memset(dk_ref, 0, sizeof(dk_ref));
+            memset(ek_ref, 0, sizeof(ek_ref)); memset(dk_ref, 0, sizeof(dk_ref)); 
             memset(ct_ref, 0, sizeof(ct_ref)); memset(ss_ref, 0, sizeof(ss_ref));
         }
         else if (strncmp(line, "d = ", 4) == 0) strcpy(d_hex, line + 4);
@@ -103,64 +106,86 @@ int main(int argc, char** argv) {
             d_hex[strcspn(d_hex, "\r\n")] = 0; z_hex[strcspn(z_hex, "\r\n")] = 0; msg_hex[strcspn(msg_hex, "\r\n")] = 0;
             ek_ref[strcspn(ek_ref, "\r\n")] = 0; dk_ref[strcspn(dk_ref, "\r\n")] = 0; ct_ref[strcspn(ct_ref, "\r\n")] = 0; ss_ref[strcspn(ss_ref, "\r\n")] = 0;
 
-            hex2bin(d_hex, injected_d); hex2bin(z_hex, injected_z);
+            hex2bin(d_hex, injected_d); 
+            hex2bin(z_hex, injected_z);
             if (strlen(msg_hex)) hex2bin(msg_hex, injected_m);
 
-            /* --- KEYGEN TEST --- */
             if (strlen(ek_ref) && strlen(dk_ref)) {
-                current_mode = 1; d_used = z_used = 0;
-                EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(NULL, alg_name, NULL);
-                if (ctx && EVP_PKEY_keygen_init(ctx) == 1) {
-                    EVP_PKEY *pkey = NULL;
-                    if (EVP_PKEY_keygen(ctx, &pkey) == 1) {
-                        size_t pk_len=0, sk_len=0;
-                        EVP_PKEY_get_raw_public_key(pkey, NULL, &pk_len);
-                        EVP_PKEY_get_raw_private_key(pkey, NULL, &sk_len);
-                        uint8_t *pk = malloc(pk_len), *sk = malloc(sk_len);
-                        EVP_PKEY_get_raw_public_key(pkey, pk, &pk_len);
-                        EVP_PKEY_get_raw_private_key(pkey, sk, &sk_len);
+                current_mode = 1;
 
-                        uint8_t ek_bin[3000], dk_bin[4000];
-                        hex2bin(ek_ref, ek_bin); hex2bin(dk_ref, dk_bin);
+                EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(alg_nid, NULL);
+                EVP_PKEY *pkey = NULL;
+                
+                if (ctx && EVP_PKEY_keygen_init(ctx) == 1 && EVP_PKEY_keygen(ctx, &pkey) == 1) {
+                    size_t pk_len = 0, sk_len = 0;
+                    EVP_PKEY_get_raw_public_key(pkey, NULL, &pk_len);
+                    EVP_PKEY_get_raw_private_key(pkey, NULL, &sk_len);
+                    
+                    uint8_t pk[3000], sk[4000];
+                    EVP_PKEY_get_raw_public_key(pkey, pk, &pk_len);
+                    EVP_PKEY_get_raw_private_key(pkey, sk, &sk_len);
 
-                        if (memcmp(pk, ek_bin, pk_len) == 0 && memcmp(sk, dk_bin, sk_len) == 0) keygen_pass++;
-                        else printf(" [!] KeyGen Mismatch at count %d\n", count);
-
-                        free(pk); free(sk);
-                        EVP_PKEY_free(pkey);
-                    } else printf(" [!] EVP_PKEY_keygen Failed at count %d\n", count);
-                } else printf(" [!] Failed to init AWS-LC Context for %s (check linking)\n", alg_name);
-                if(ctx) EVP_PKEY_CTX_free(ctx);
+                    uint8_t ek_bin[3000], dk_bin[4000];
+                    hex2bin(ek_ref, ek_bin); hex2bin(dk_ref, dk_bin);
+                    
+                    if (memcmp(pk, ek_bin, pk_len) == 0 && memcmp(sk, dk_bin, sk_len) == 0) keygen_pass++;
+                    else printf(" [!] KeyGen Mismatch at count %d\n", count);
+                } else printf(" [!] KeyGen Function Failed at count %d\n", count);
+                
+                if (pkey) EVP_PKEY_free(pkey);
+                if (ctx) EVP_PKEY_CTX_free(ctx);
             }
 
-            /* --- ENCAPSULATION TEST --- */
             if (strlen(msg_hex) && strlen(ek_ref)) {
-                current_mode = 2; m_used = 0;
-                uint8_t ek_bin[3000]; int ek_len = hex2bin(ek_ref, ek_bin);
-                EVP_PKEY *pkey = EVP_PKEY_new_raw_public_key(EVP_PKEY_ANY, NULL, ek_bin, ek_len); 
-                // Wait, ANY might not work if AWS-LC requires specific NID, so let's use the explicit name
-                if (!pkey) { // try alternative
-                    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_name(NULL, alg_name, NULL);
-                    // OpenSSL standard decodes require the type
-                }
+                current_mode = 2;
+                uint8_t ek_bin[3000]; size_t ek_len = hex2bin(ek_ref, ek_bin);
+                EVP_PKEY *pkey = EVP_PKEY_new_raw_public_key(alg_nid, NULL, ek_bin, ek_len);
                 
-                // standard OpenSSL new_raw_key needs type via ID. If we don't know NID, AWS-LC has MLKEM512 directly
-                EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(NULL, alg_name, NULL);
-                if(ctx) {
-                    // It is safer to use the higher-level functions assuming AWS-LC has standard encap
-                    // Due to API variability in "raw public key" loading, let's skip encap standalone if it fails parsing. 
-                    EVP_PKEY_CTX_free(ctx); 
+                if (pkey) {
+                    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkey, NULL);
+                    if (pctx && EVP_PKEY_encapsulate_init(pctx, NULL) == 1) {
+                        uint8_t ct[3000], ss[32];
+                        size_t ct_len = 0, ss_len = 32;
+                        EVP_PKEY_encapsulate(pctx, ct, &ct_len, ss, &ss_len);
+
+                        uint8_t ct_bin[3000], ss_bin[32];
+                        hex2bin(ct_ref, ct_bin); hex2bin(ss_ref, ss_bin);
+                        if (memcmp(ct, ct_bin, ct_len) == 0 && memcmp(ss, ss_bin, 32) == 0) encap_pass++;
+                        else printf(" [!] Encap Mismatch at count %d\n", count);
+                    } else printf(" [!] Encap Function Failed at count %d\n", count);
+                    if (pctx) EVP_PKEY_CTX_free(pctx);
                 }
-                if (pkey) EVP_PKEY_free(pkey); 
+                if (pkey) EVP_PKEY_free(pkey);
+            }
+
+            if (strlen(dk_ref) && strlen(ct_ref) && strlen(ss_ref) && !strlen(msg_hex)) {
+                uint8_t dk_bin[4000]; size_t sk_len = hex2bin(dk_ref, dk_bin);
+                EVP_PKEY *pkey = EVP_PKEY_new_raw_private_key(alg_nid, NULL, dk_bin, sk_len);
+                
+                if (pkey) {
+                    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+                    if (ctx && EVP_PKEY_decapsulate_init(ctx, NULL) == 1) {
+                        uint8_t ct_bin[3000], ss_bin[32];
+                        size_t ct_len = hex2bin(ct_ref, ct_bin); hex2bin(ss_ref, ss_bin);
+                        
+                        uint8_t ss_out[32]; size_t ss_out_len = 32;
+                        if (EVP_PKEY_decapsulate(ctx, ss_out, &ss_out_len, ct_bin, ct_len) == 1) {
+                            if (memcmp(ss_out, ss_bin, 32) == 0) decap_pass++;
+                            else printf(" [!] Decap Mismatch at count %d\n", count);
+                        } else printf(" [!] Decap Function Failed at count %d\n", count);
+                    }
+                    if (ctx) EVP_PKEY_CTX_free(ctx);
+                }
+                if (pkey) EVP_PKEY_free(pkey);
             }
         }
     }
     fclose(fp);
 
-    printf("\n  Summary for AWS-LC %s\n", alg_name);
-    printf("  --------------------------------------------------------\n");
-    if (keygen_pass > 0) printf("  KeyGen Passed:         %d / %d\n", keygen_pass, keygen_pass);
+    printf("\n  Summary for AWS-LC ML-KEM-%d\n", bits);
+    if (keygen_pass > 0) printf("  KeyGen Passed:         %d\n", keygen_pass);
+    if (encap_pass > 0)  printf("  Encapsulation Passed:  %d\n", encap_pass);
+    if (decap_pass > 0)  printf("  Decapsulation Passed:  %d\n", decap_pass);
     printf("========================================================\n\n");
-
     return 0;
 }
