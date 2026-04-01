@@ -1,8 +1,12 @@
-build/
+# Binaries
+test_awslc
+test_awslc_nist
+test_wolfssl_nist
+test_pqclean_nist
+
+# Build artifacts
 *.o
 *.out
-/tmp/
-__pycache__/
-*.pyc
-*.log
 
+# OS
+.DS_Store
