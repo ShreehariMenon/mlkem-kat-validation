@@ -2,8 +2,6 @@
 
 A high-performance, native C-based framework designed to validate cryptographic implementations of ML-KEM (FIPS 203) against official NIST ACVP Known Answer Test (KAT) vectors.
 
----
-
 ## 🔍 Objective
 
 To verify that real-world cryptographic libraries correctly implement ML-KEM by reproducing **exact deterministic outputs** defined by NIST.
@@ -13,8 +11,6 @@ The framework evaluates:
 * ML-KEM-512
 * ML-KEM-768
 * ML-KEM-1024
-
----
 
 ## 🧠 The Cryptography Challenge
 
@@ -32,8 +28,6 @@ Each test requires:
   * Shared Secret (`ss`)
 
 Even a **single byte mismatch = failure**
-
----
 
 ## ⚙️ Why Native C?
 
@@ -57,8 +51,6 @@ This framework uses **pure C harnesses** to:
      AWS-LC                         WolfSSL
  (Reference Source)         (Implementation Tested)
 ```
-
----
 
 ## 📥 Input (NIST Vectors)
 
@@ -84,8 +76,6 @@ ct = ...
 ss = ...
 ```
 
----
-
 ## 🧪 Execution Workflow
 
 ### WolfSSL (Active Validation)
@@ -99,7 +89,6 @@ For each test vector:
 
 ✔ Full byte-level verification
 
----
 
 ### AWS-LC (Reference Validation)
 
@@ -124,7 +113,6 @@ For each test vector:
 | 1024    | AWS-LC  | ✔      | ✔     | ✔     | 100%     |
 | 1024    | WolfSSL | ✔      | ✔     | ✔     | 100%     |
 
----
 
 ## 📈 Visual Accuracy
 
@@ -133,8 +121,6 @@ ML-KEM-512   ████████████████████ 100%
 ML-KEM-768   ████████████████████ 100%
 ML-KEM-1024  ████████████████████ 100%
 ```
-
----
 
 ## 🧠 Key Insights
 
@@ -150,7 +136,6 @@ ML-KEM-1024  ████████████████████ 100%
 * AWS-LC (`test_awslc_nist.c`)
 * PQClean (`test_pqclean_nist.c`) *(optional)*
 
----
 
 ## ⚙️ Prerequisites
 
@@ -173,15 +158,11 @@ Update paths in `Makefile` if required.
 make
 ```
 
----
-
 ### 2. Run Evaluation
 
 ```bash
 ./run_kats.sh
 ```
-
----
 
 ### 3. View Results
 
@@ -189,7 +170,6 @@ make
 KAT_EVALUATION_REPORT.md
 ```
 
----
 
 ## 📁 Project Structure
 
@@ -214,7 +194,6 @@ This framework demonstrates **end-to-end validation of ML-KEM implementations** 
 ✔ 100% accuracy across all variants
 ✔ Fully reproducible deterministic testing
 
----
 
 ## 📌 Final Statement
 
